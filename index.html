@@ -2782,55 +2782,34 @@
         window.addEventListener('keydown', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); }, { once: true });
 
         // ============================================================
-        //  AMBIENCE SYSTEM
+        //  AMBIENCE SYSTEM — real Pixabay tracks
         // ============================================================
-        let ambienceTimer = null;
-        let ambienceLevel = null;
+        const bgmFiles = {
+            city: 'sounds/city.mp3',
+            beach: 'sounds/beach.mp3',
+            reef: 'sounds/reef.mp3',
+            jungle: 'sounds/jungle.mp3',
+            criminal: 'sounds/criminal.mp3',
+            // ending reuses the beach track
+        };
+        const bgmPlayers = {};
+        let currentBgm = null;
+
         function setAmbience(level) {
-            if (ambienceLevel === level) return;
-            ambienceLevel = level;
-            if (ambienceTimer) { clearInterval(ambienceTimer); ambienceTimer = null; }
-            if (level === 'beach' || level === 'ending') {
-                ambienceTimer = setInterval(() => {
-                    if (currentLevel !== level) return;
-                    const bufSize = Math.floor(audioCtx.sampleRate * 1.8);
-                    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
-                    const data = buf.getChannelData(0);
-                    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 0.5);
-                    const src = audioCtx.createBufferSource(); src.buffer = buf;
-                    const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 900;
-                    const gain = audioCtx.createGain();
-                    gain.gain.setValueAtTime(0, audioCtx.currentTime);
-                    gain.gain.linearRampToValueAtTime(0.14, audioCtx.currentTime + 0.6);
-                    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.8);
-                    src.connect(filter); filter.connect(gain); gain.connect(audioMasterGain);
-                    src.start(); src.stop(audioCtx.currentTime + 1.8);
-                }, 2400);
-            } else if (level === 'jungle') {
-                ambienceTimer = setInterval(() => {
-                    if (currentLevel !== 'jungle') return;
-                    const base = 1500 + Math.random() * 1500;
-                    playTone(base, 0.08, 'sine', 0.05);
-                    setTimeout(() => playTone(base * 1.2, 0.06, 'sine', 0.05), 100);
-                    if (Math.random() > 0.5) setTimeout(() => playTone(base * 0.9, 0.1, 'sine', 0.05), 250);
-                }, 900);
-            } else if (level === 'city') {
-                ambienceTimer = setInterval(() => {
-                    if (currentLevel !== 'city') return;
-                    playTone(60 + Math.random() * 40, 1.5, 'sawtooth', 0.02);
-                    if (Math.random() > 0.65) playTone(300 + Math.random() * 200, 0.35, 'square', 0.03);
-                }, 2600);
-            } else if (level === 'reef') {
-                ambienceTimer = setInterval(() => {
-                    if (currentLevel !== 'reef') return;
-                    playTone(400 + Math.random() * 400, 0.15, 'sine', 0.05, 900 + Math.random() * 400);
-                }, 1300);
-            } else if (level === 'criminal') {
-                ambienceTimer = setInterval(() => {
-                    if (currentLevel !== 'criminal') return;
-                    playTone(55 + Math.random() * 25, 1.2, 'sawtooth', 0.025);
-                }, 2000);
+            const trackKey = level === 'ending' ? 'beach' : level;
+            if (currentBgm) {
+                currentBgm.pause();
+                currentBgm.currentTime = 0;
+                currentBgm = null;
             }
+            if (!bgmFiles[trackKey]) return;
+            if (!bgmPlayers[trackKey]) {
+                bgmPlayers[trackKey] = new Audio(bgmFiles[trackKey]);
+                bgmPlayers[trackKey].loop = true;
+                bgmPlayers[trackKey].volume = 0.35;
+            }
+            currentBgm = bgmPlayers[trackKey];
+            currentBgm.play().catch(() => {});
         }
 
         const keyState = { w: false, a: false, s: false, d: false };
@@ -2883,7 +2862,7 @@
                         document.getElementById('treasure-map').classList.toggle('visible', mapVisible);
                         document.getElementById('map-hint').classList.toggle('visible', !mapVisible);
                         break;
-                }
+            }
             });
             window.addEventListener('keyup', (e) => {
                 switch (e.code) {
