@@ -69,7 +69,7 @@
             box-shadow: 0 5px 0 #2a4050, 0 8px 20px rgba(0, 0, 0, 0.5);
             color: #0a1a2a;
         }
-        #animal-counter, #trash-counter, #coral-counter, #bird-counter {
+        #animal-counter, #trash-counter, #coral-counter, #bird-counter, #bonus-counter {
             position: absolute; top: 10px; right: 70px;
             color: white; background: rgba(0,0,0,0.7);
             padding: 8px 14px; border-radius: 8px;
@@ -80,14 +80,16 @@
         #trash-counter { border: 2px solid #44ccff; }
         #coral-counter { border: 2px solid #ff88cc; }
         #bird-counter { border: 2px solid #88cc44; }
-        #animal-counter.visible, #trash-counter.visible, #coral-counter.visible, #bird-counter.visible { display: block; }
-        #animal-counter .counter-num, #trash-counter .counter-num, #coral-counter .counter-num, #bird-counter .counter-num {
+        #bonus-counter { border: 2px solid #ffee88; }
+        #animal-counter.visible, #trash-counter.visible, #coral-counter.visible, #bird-counter.visible, #bonus-counter.visible { display: block; }
+        #animal-counter .counter-num, #trash-counter .counter-num, #coral-counter .counter-num, #bird-counter .counter-num, #bonus-counter .counter-num {
             font-size: 18px; font-weight: bold;
         }
         #animal-counter .counter-num { color: #ffdd88; }
         #trash-counter .counter-num { color: #88ddff; }
         #coral-counter .counter-num { color: #ffaadd; }
         #bird-counter .counter-num { color: #ccffaa; }
+        #bonus-counter .counter-num { color: #ffee88; }
         #rescue-prompt, #trash-prompt, #coral-prompt, #climb-prompt {
             position: absolute; bottom: 100px; left: 50%;
             transform: translateX(-50%);
@@ -343,7 +345,6 @@
             z-index: 250; display: none;
         }
         #map-hint.visible { display: block; }
-
         #criminal-hud {
             position: absolute; top: 10px; right: 70px;
             color: white; background: rgba(0,0,0,0.75);
@@ -356,7 +357,6 @@
         #criminal-hud .criminal-hud-num { font-size: 18px; font-weight: bold; color: #66ffaa; }
         #criminal-hud .criminal-hud-row { letter-spacing: 1px; }
         #criminal-hud #gun-status { font-size: 10px; color: #a0d0a0; margin-top: 4px; letter-spacing: 0; }
-
         #cinematic-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; display: none;
@@ -374,7 +374,6 @@
             max-width: 80vw; line-height: 1.6;
         }
         #cinematic-overlay .cinematic-line.visible { opacity: 1; }
-
         #ending-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.85) 100%);
@@ -403,6 +402,7 @@
         <div class="subtitle">CITY · BEACH · REEF · JUNGLE · CRIMINAL</div>
         <div class="mission">
             🐦 Rescue caged animals in the city<br>
+            🏠 Do eco-actions inside the household<br>
             🗑️ Clean 8 pieces of trash on the beach<br>
             🪸 Heal damaged corals in the reef<br>
             🗺️ Follow the map into the wild jungle!<br>
@@ -450,6 +450,10 @@
     <div id="bird-counter">
         <div>🐦 FREED</div>
         <div class="counter-num" id="bird-num">0 / 3</div>
+    </div>
+    <div id="bonus-counter">
+        <div>🏠 HOUSEHOLD</div>
+        <div class="counter-num" id="bonus-num">0 / 6</div>
     </div>
 
     <div id="rescue-prompt">
@@ -773,7 +777,6 @@
         skyDome.renderOrder = -1000;
         scene.add(skyDome);
 
-        // Sun & moon
         const sunGroup = new THREE.Group(); scene.add(sunGroup);
         const sunCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffee, fog: false });
         sunGroup.add(new THREE.Mesh(new THREE.BoxGeometry(14, 14, 14), sunCoreMat));
@@ -802,7 +805,6 @@
         const moonGlowMat = new THREE.MeshBasicMaterial({ color: 0xccddee, transparent: true, opacity: 0.4, fog: false, depthWrite: false });
         moonGroup.add(new THREE.Mesh(new THREE.SphereGeometry(14, 20, 20), moonGlowMat));
 
-        // Stars
         const starsGeometry = new THREE.BufferGeometry();
         const starCount = 400;
         const starPositions = new Float32Array(starCount * 3);
@@ -822,7 +824,6 @@
         const stars = new THREE.Points(starsGeometry, starsMaterial);
         scene.add(stars);
 
-        // Clouds
         const cloudGroup = new THREE.Group(); scene.add(cloudGroup);
         const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, fog: false, depthWrite: false });
         function createCloudPuff(baseX, baseY, baseZ, scale) {
@@ -860,9 +861,6 @@
         reefGroup.visible = false;
         jungleGroup.visible = false;
 
-        // ============================================================
-        //  COLLIDERS
-        // ============================================================
         const colliders = [];
         function addBoxCollider(cx, cy, cz, halfW, halfH, halfD) {
             colliders.push({ minX: cx - halfW, maxX: cx + halfW, minY: cy - halfH, maxY: cy + halfH, minZ: cz - halfD, maxZ: cz + halfD, level: currentLevel });
@@ -1263,16 +1261,12 @@
 
         function spawnKeyFor(cageX, cageZ) {
             let kx, kz, attempts = 0;
-            // Walkable X range on the street (minus a small buffer from the sidewalk edge)
             const xMin = -(STREET_WIDTH / 2 + SIDEWALK_WIDTH - 0.6);
             const xMax =  (STREET_WIDTH / 2 + SIDEWALK_WIDTH - 0.6);
             do {
-                // Prefer to spawn along the street (offset mostly in Z, small in X)
                 kx = cageX + (Math.random() - 0.5) * 4;
                 kz = cageZ + (Math.random() - 0.5) * 16;
-                // Clamp into the walkable band
                 kx = Math.max(xMin, Math.min(xMax, kx));
-                // Keep within street length
                 kz = Math.max(-STREET_LENGTH/2 + 2, Math.min(STREET_LENGTH/2 - 2, kz));
                 attempts++;
             } while (collidesAt(kx, PLAYER_HEIGHT, kz) && attempts < 30);
@@ -1398,6 +1392,276 @@
                 animal.locked = false;
             }
         });
+
+        // ============================================================
+        //  HOUSEHOLD INTERIOR (entered via a door on the street)
+        // ============================================================
+        const interiorGroup = new THREE.Group();
+        interiorGroup.visible = false;
+        scene.add(interiorGroup);
+
+        const HOUSE_DOOR_X = STREET_WIDTH/2 + SIDEWALK_WIDTH - 0.3;
+        const HOUSE_DOOR_Z = 8;
+        const houseDoorGroup = new THREE.Group();
+        const doorFrameMat = new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 0.8 });
+        const doorMat = new THREE.MeshStandardMaterial({ color: 0x8a4a20, roughness: 0.7, emissive: 0xffaa44, emissiveIntensity: 0.4 });
+        const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.8, 1.6), doorFrameMat);
+        doorFrame.position.set(0, 1.4, 0); houseDoorGroup.add(doorFrame);
+        const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.5, 1.2), doorMat);
+        doorPanel.position.set(-0.05, 1.25, 0); houseDoorGroup.add(doorPanel);
+        const doorHandle = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffcc44, metalness: 0.9, roughness: 0.2 }));
+        doorHandle.position.set(-0.15, 1.2, 0.4); houseDoorGroup.add(doorHandle);
+        const doorRingMat = new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.8, depthWrite: false });
+        const doorRing = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.07, 8, 20), doorRingMat);
+        doorRing.rotation.x = Math.PI / 2; doorRing.position.y = 3.2; houseDoorGroup.add(doorRing);
+        houseDoorGroup.position.set(HOUSE_DOOR_X, 0, HOUSE_DOOR_Z);
+        cityGroup.add(houseDoorGroup);
+        addBoxCollider(HOUSE_DOOR_X, 1.4, HOUSE_DOOR_Z, 0.15, 1.4, 0.8);
+        colliders[colliders.length - 1].level = 'city';
+
+        const houseDoor = { group: houseDoorGroup, ring: doorRing, x: HOUSE_DOOR_X, z: HOUSE_DOOR_Z };
+
+        const interiorSize = 12;
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0xb08858, roughness: 0.9 });
+        const interiorFloor = new THREE.Mesh(new THREE.BoxGeometry(interiorSize, 0.2, interiorSize), floorMat);
+        interiorFloor.position.set(0, 0.1, 0); interiorFloor.receiveShadow = true; interiorGroup.add(interiorFloor);
+        const wallColor = 0xe8d8c0;
+        const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9 });
+        const ceilMat = new THREE.MeshStandardMaterial({ color: 0xf0e8d8, roughness: 0.9 });
+        const wallN = new THREE.Mesh(new THREE.BoxGeometry(interiorSize, 4, 0.3), wallMat);
+        wallN.position.set(0, 2, -interiorSize/2); interiorGroup.add(wallN);
+        const wallS = new THREE.Mesh(new THREE.BoxGeometry(interiorSize, 4, 0.3), wallMat);
+        wallS.position.set(0, 2, interiorSize/2); interiorGroup.add(wallS);
+        const wallE = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4, interiorSize), wallMat);
+        wallE.position.set(interiorSize/2, 2, 0); interiorGroup.add(wallE);
+        const wallW = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4, interiorSize), wallMat);
+        wallW.position.set(-interiorSize/2, 2, 0); interiorGroup.add(wallW);
+        const ceiling = new THREE.Mesh(new THREE.BoxGeometry(interiorSize, 0.3, interiorSize), ceilMat);
+        ceiling.position.set(0, 4, 0); interiorGroup.add(ceiling);
+        addBoxCollider(0, 2, -interiorSize/2, interiorSize/2, 2, 0.15);
+        colliders[colliders.length - 1].level = 'interior';
+        addBoxCollider(0, 2, interiorSize/2, interiorSize/2, 2, 0.15);
+        colliders[colliders.length - 1].level = 'interior';
+        addBoxCollider(interiorSize/2, 2, 0, 0.15, 2, interiorSize/2);
+        colliders[colliders.length - 1].level = 'interior';
+        addBoxCollider(-interiorSize/2, 2, 0, 0.15, 2, interiorSize/2);
+        colliders[colliders.length - 1].level = 'interior';
+
+        const interiorLight = new THREE.PointLight(0xffddaa, 1.6, 15, 2);
+        interiorLight.position.set(0, 3.5, 0);
+        interiorGroup.add(interiorLight);
+        const interiorAmbient = new THREE.AmbientLight(0xffe8d0, 0.5);
+        interiorGroup.add(interiorAmbient);
+
+        const exitGroup = new THREE.Group();
+        const exitMat = new THREE.MeshStandardMaterial({ color: 0x8a4a20, roughness: 0.7, emissive: 0xffaa44, emissiveIntensity: 0.4 });
+        const exitPanel = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.6, 0.15), exitMat);
+        exitPanel.position.set(0, 1.3, 0); exitGroup.add(exitPanel);
+        const exitRingMat = new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.8, depthWrite: false });
+        const exitRing = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.07, 8, 20), exitRingMat);
+        exitRing.rotation.x = Math.PI / 2; exitRing.position.y = 3.0; exitGroup.add(exitRing);
+        exitGroup.position.set(0, 0, interiorSize/2 - 0.1);
+        interiorGroup.add(exitGroup);
+        const exitDoor = { group: exitGroup, ring: exitRing, x: 0, z: interiorSize/2 - 0.1 };
+
+        const ecoObjectives = [];
+        let bonusCount = 0;
+        const TOTAL_BONUS = 6;
+
+        function buildLightSwitch(x, z) {
+            const g = new THREE.Group();
+            const plateMat = new THREE.MeshStandardMaterial({ color: 0xf0f0e8, roughness: 0.6 });
+            const plate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.15), plateMat);
+            plate.position.set(0, 1.4, 0); g.add(plate);
+            const toggleMat = new THREE.MeshStandardMaterial({ color: 0xffdd44, emissive: 0xffaa00, emissiveIntensity: 1.2, roughness: 0.3 });
+            const toggle = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.25, 0.1), toggleMat);
+            toggle.position.set(0, 1.55, 0.1); g.add(toggle);
+            const indMat = new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.85, depthWrite: false });
+            const indicator = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.06, 8, 16), indMat);
+            indicator.rotation.x = Math.PI / 2; indicator.position.y = 2.5; g.add(indicator);
+            g.position.set(x, 0, z);
+            return { group: g, indicator, type: 'light' };
+        }
+        function buildAC(x, z) {
+            const g = new THREE.Group();
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, roughness: 0.5, metalness: 0.3 });
+            const box = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.7, 0.5), boxMat);
+            box.position.y = 2.6; g.add(box);
+            const ventMat = new THREE.MeshStandardMaterial({ color: 0x303030, roughness: 0.9 });
+            const vent = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 0.05), ventMat);
+            vent.position.set(0, 2.6, 0.26); g.add(vent);
+            const ledMat = new THREE.MeshStandardMaterial({ color: 0x44ff88, emissive: 0x00ff44, emissiveIntensity: 1.5, roughness: 0.2 });
+            const led = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), ledMat);
+            led.position.set(0.55, 2.75, 0.28); g.add(led);
+            const indMat = new THREE.MeshBasicMaterial({ color: 0x88ddff, transparent: true, opacity: 0.85, depthWrite: false });
+            const indicator = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, 8, 16), indMat);
+            indicator.rotation.x = Math.PI / 2; indicator.position.y = 3.5; g.add(indicator);
+            g.position.set(x, 0, z);
+            return { group: g, indicator, type: 'ac' };
+        }
+        function buildTap(x, z) {
+            const g = new THREE.Group();
+            const metalMat = new THREE.MeshStandardMaterial({ color: 0xb8b8b8, roughness: 0.35, metalness: 0.8 });
+            const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.8, 8), metalMat);
+            pipe.position.y = 0.4; g.add(pipe);
+            const spout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.1), metalMat);
+            spout.position.set(0.15, 0.75, 0); g.add(spout);
+            const handle = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 0.1), new THREE.MeshStandardMaterial({ color: 0xdd3333, roughness: 0.6 }));
+            handle.position.set(0, 0.6, 0.15); g.add(handle);
+            const indMat = new THREE.MeshBasicMaterial({ color: 0x44ddff, transparent: true, opacity: 0.85, depthWrite: false });
+            const indicator = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.06, 8, 16), indMat);
+            indicator.rotation.x = Math.PI / 2; indicator.position.y = 1.8; g.add(indicator);
+            g.position.set(x, 0, z);
+            return { group: g, indicator, type: 'tap' };
+        }
+        function buildTrashBin(x, z) {
+            const g = new THREE.Group();
+            const binMat = new THREE.MeshStandardMaterial({ color: 0x2a8a4a, roughness: 0.7 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.4, 1.1, 10), binMat);
+            body.position.y = 0.55; g.add(body);
+            const lid = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.1, 1.0), new THREE.MeshStandardMaterial({ color: 0x1a5a2a, roughness: 0.6 }));
+            lid.position.y = 1.15; g.add(lid);
+            const recycle = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.04, 6, 14), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x44ff88, emissiveIntensity: 0.6 }));
+            recycle.position.set(0, 0.6, 0.46); g.add(recycle);
+            const indMat = new THREE.MeshBasicMaterial({ color: 0x88ffaa, transparent: true, opacity: 0.85, depthWrite: false });
+            const indicator = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, 8, 16), indMat);
+            indicator.rotation.x = Math.PI / 2; indicator.position.y = 2.0; g.add(indicator);
+            g.position.set(x, 0, z);
+            return { group: g, indicator, type: 'bin' };
+        }
+        function buildPowerSocket(x, z) {
+            const g = new THREE.Group();
+            const plateMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.6 });
+            const plate = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 0.12), plateMat);
+            plate.position.set(0, 1.6, 0); g.add(plate);
+            const holeMat = new THREE.MeshStandardMaterial({ color: 0x101010 });
+            [-0.13, 0.13].forEach(dx => {
+                const hole = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.06), holeMat);
+                hole.position.set(dx, 1.6, 0.07); g.add(hole);
+            });
+            const plug = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.15), new THREE.MeshStandardMaterial({ color: 0xdd3333, roughness: 0.5 }));
+            plug.position.set(0, 1.2, 0.15); g.add(plug);
+            const cable = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 0.08), new THREE.MeshStandardMaterial({ color: 0x101010, roughness: 0.9 }));
+            cable.position.set(0, 0.7, 0.15); cable.rotation.z = 0.2; g.add(cable);
+            const indMat = new THREE.MeshBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.85, depthWrite: false });
+            const indicator = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.06, 8, 16), indMat);
+            indicator.rotation.x = Math.PI / 2; indicator.position.y = 2.6; g.add(indicator);
+            g.position.set(x, 0, z);
+            return { group: g, indicator, type: 'socket' };
+        }
+        function buildRadiator(x, z) {
+            const g = new THREE.Group();
+            const radMat = new THREE.MeshStandardMaterial({ color: 0xe0e0d8, roughness: 0.55, metalness: 0.3 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 0.3), radMat);
+            body.position.y = 0.75; g.add(body);
+            for (let i = -2; i <= 2; i++) {
+                const fin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.0, 0.35), radMat);
+                fin.position.set(i * 0.22, 0.75, 0); g.add(fin);
+            }
+            const valve = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.25), new THREE.MeshStandardMaterial({ color: 0xaa2222, roughness: 0.5 }));
+            valve.position.set(0.7, 0.75, 0.05); g.add(valve);
+            const indMat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.85, depthWrite: false });
+            const indicator = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, 8, 16), indMat);
+            indicator.rotation.x = Math.PI / 2; indicator.position.y = 2.2; g.add(indicator);
+            g.position.set(x, 0, z);
+            return { group: g, indicator, type: 'radiator' };
+        }
+
+        const ecoDefs = [
+            { build: buildLightSwitch, x: -4.5, z: -4.8, ry: 0 },
+            { build: buildAC,          x:  0,   z: -4.8, ry: 0 },
+            { build: buildTap,         x: -4.8, z:  1.5, ry: Math.PI/2 },
+            { build: buildTrashBin,    x:  4.5, z: -3.5, ry: 0 },
+            { build: buildPowerSocket, x:  4.8, z:  1.5, ry: -Math.PI/2 },
+            { build: buildRadiator,    x: -3.0, z:  4.8, ry: Math.PI },
+        ];
+
+        ecoDefs.forEach(def => {
+            const built = def.build(def.x, def.z);
+            if (def.ry) built.group.rotation.y = def.ry;
+            interiorGroup.add(built.group);
+            addBoxCollider(def.x, 1.0, def.z, 0.6, 1.0, 0.6);
+            colliders[colliders.length - 1].level = 'interior';
+            ecoObjectives.push({
+                group: built.group,
+                indicator: built.indicator,
+                type: built.type,
+                x: def.x,
+                z: def.z,
+                done: false
+            });
+        });
+
+        function completeEco(obj) {
+            if (obj.done) return;
+            obj.done = true;
+            bonusCount++;
+            document.getElementById('bonus-num').textContent = `${bonusCount} / ${TOTAL_BONUS}`;
+            const pulse = new THREE.Mesh(
+                new THREE.SphereGeometry(0.6, 12, 12),
+                new THREE.MeshBasicMaterial({ color: 0x88ffaa, transparent: true, opacity: 0.85, depthWrite: false })
+            );
+            pulse.position.set(obj.x, 1.2, obj.z);
+            interiorGroup.add(pulse);
+            let s = 1;
+            const fi = setInterval(() => {
+                s += 0.25;
+                pulse.scale.setScalar(s);
+                pulse.material.opacity -= 0.06;
+                if (pulse.material.opacity <= 0) { clearInterval(fi); interiorGroup.remove(pulse); }
+            }, 40);
+            if (obj.indicator) obj.indicator.visible = false;
+            playTone(700, 0.1, 'sine', 0.2);
+            setTimeout(() => playTone(1050, 0.2, 'sine', 0.2), 100);
+            const labels = {
+                light: ['💡', 'LIGHTS OFF!', 'The household saves energy.'],
+                ac:    ['❄️', 'AC TURNED UP!', 'Wasting less electricity.'],
+                tap:   ['💧', 'TAP CLOSED!', 'No more wasted water.'],
+                bin:   ['♻️', 'RECYCLED!', 'Waste sorted properly.'],
+                socket:['🔌', 'UNPLUGGED!', 'Phantom power eliminated.'],
+                radiator: ['🔥', 'HEAT LOWERED!', 'Cozy but responsible.'],
+            };
+            const [icon, title, sub] = labels[obj.type] || ['✨', 'BONUS!', 'Good job!'];
+            toastIcon.textContent = icon;
+            toastTitle.textContent = title;
+            toastSub.textContent = `${sub} (${bonusCount}/${TOTAL_BONUS})`;
+            rewardToast.classList.add('visible');
+            setTimeout(() => rewardToast.classList.remove('visible'), 1800);
+            if (bonusCount >= TOTAL_BONUS) {
+                setTimeout(() => {
+                    toastIcon.textContent = '🌍';
+                    toastTitle.textContent = 'ECO CHAMPION!';
+                    toastSub.textContent = 'All household eco-actions completed!';
+                    rewardToast.classList.add('visible');
+                    setTimeout(() => rewardToast.classList.remove('visible'), 3000);
+                }, 2000);
+            }
+        }
+
+        let insideHouse = false;
+        let savedOutsidePos = new THREE.Vector3();
+        function enterHouse() {
+            insideHouse = true;
+            savedOutsidePos.copy(camera.position);
+            cityGroup.visible = false;
+            interiorGroup.visible = true;
+            currentLevel = 'interior';
+            camera.position.set(0, PLAYER_HEIGHT, interiorSize/2 - 2);
+            yaw = Math.PI; pitch = 0;
+            velocity.set(0, 0, 0);
+            playTone(500, 0.15, 'sine', 0.2);
+            setTimeout(() => playTone(750, 0.2, 'sine', 0.2), 100);
+        }
+        function exitHouse() {
+            insideHouse = false;
+            interiorGroup.visible = false;
+            cityGroup.visible = true;
+            currentLevel = 'city';
+            camera.position.copy(savedOutsidePos);
+            camera.position.x -= 1.5;
+            velocity.set(0, 0, 0);
+            playTone(600, 0.15, 'sine', 0.2);
+        }
 
         // ============================================================
         //  BEACH LEVEL SETUP
@@ -2119,7 +2383,6 @@
         criminalGroup.add(criminalAmbient);
         const criminalHemi = new THREE.HemisphereLight(0x334455, 0x0a0a0a, 0.35);
         criminalGroup.add(criminalHemi);
-
         const criminalSpot = new THREE.DirectionalLight(0xffd0a0, 0.55);
         criminalSpot.position.set(20, 40, 15);
         criminalSpot.castShadow = true;
@@ -2129,19 +2392,15 @@
         criminalSpot.shadow.camera.top = 35; criminalSpot.shadow.camera.bottom = -35;
         criminalSpot.shadow.camera.near = 1; criminalSpot.shadow.camera.far = 100;
         criminalGroup.add(criminalSpot);
-
         const criminalFill = new THREE.DirectionalLight(0x4060a0, 0.4);
         criminalFill.position.set(-25, 20, -15);
         criminalGroup.add(criminalFill);
-
         const bossLight = new THREE.PointLight(0xff2222, 2.5, 20, 2);
         bossLight.position.set(0, 6, -CRIMINAL_SIZE + 6);
         criminalGroup.add(bossLight);
-
         const terminalLight = new THREE.PointLight(0x00ff66, 2.0, 12, 2);
         terminalLight.position.set(0, 3, 6);
         criminalGroup.add(terminalLight);
-
         const ceilingLights = [];
         const ceilingColors = [0xff5533, 0x3366ff, 0xffaa33, 0x33ffaa];
         for (let i = 0; i < 4; i++) {
@@ -2151,7 +2410,6 @@
             criminalGroup.add(pt);
             ceilingLights.push(pt);
         }
-
         const glowDots = [];
         for (let i = 0; i < 12; i++) {
             const dot = new THREE.Mesh(
@@ -2174,38 +2432,30 @@
             const visorMat = new THREE.MeshStandardMaterial({ color: accentColor, emissive: accentColor, emissiveIntensity: 2.5, roughness: 0.15, metalness: 0.9 });
             const skinMat = new THREE.MeshStandardMaterial({ color: 0xa87858, roughness: 0.85 });
             const helmetMat = new THREE.MeshStandardMaterial({ color: 0x14141c, roughness: 0.4, metalness: 0.75 });
-
             const legL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.5, 0.28), armorMat); legL.position.set(-0.16, 1.05, 0); g.add(legL);
             const legL2 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.5, 0.24), armorDarkMat); legL2.position.set(-0.16, 0.5, 0); g.add(legL2);
             const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.4), armorDarkMat); bootL.position.set(-0.16, 0.11, 0.06); g.add(bootL);
             const kneeL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.3), accentMat); kneeL.position.set(-0.16, 0.75, 0); g.add(kneeL);
-
             const legR = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.5, 0.28), armorMat); legR.position.set(0.16, 1.05, 0); g.add(legR);
             const legR2 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.5, 0.24), armorDarkMat); legR2.position.set(0.16, 0.5, 0); g.add(legR2);
             const bootR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.4), armorDarkMat); bootR.position.set(0.16, 0.11, 0.06); g.add(bootR);
             const kneeR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.3), accentMat); kneeR.position.set(0.16, 0.75, 0); g.add(kneeR);
-
             const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.55, 0.38), armorMat); torso.position.y = 1.6; g.add(torso);
             const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.35, 0.42), armorDarkMat); chestPlate.position.y = 1.68; g.add(chestPlate);
             const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.44), accentMat); stripe.position.y = 1.55; g.add(stripe);
             const abPlate = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.15, 0.4), armorDarkMat); abPlate.position.y = 1.35; g.add(abPlate);
-
             const shoulderL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.35), armorDarkMat); shoulderL.position.set(-0.42, 1.85, 0); g.add(shoulderL);
             const shoulderTrimL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.37), accentMat); shoulderTrimL.position.set(-0.42, 1.97, 0); g.add(shoulderTrimL);
             const shoulderR = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.35), armorDarkMat); shoulderR.position.set(0.42, 1.85, 0); g.add(shoulderR);
             const shoulderTrimR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.37), accentMat); shoulderTrimR.position.set(0.42, 1.97, 0); g.add(shoulderTrimR);
-
             const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), armorMat); armL.position.set(-0.42, 1.55, 0); g.add(armL);
             const forearmL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.35, 0.18), armorDarkMat); forearmL.position.set(-0.42, 1.18, 0.05); g.add(forearmL);
             const handL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), skinMat); handL.position.set(-0.42, 0.95, 0.05); g.add(handL);
-
             const armR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), armorMat); armR.position.set(0.42, 1.55, 0); g.add(armR);
             const forearmR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.35, 0.18), armorDarkMat); forearmR.position.set(0.42, 1.18, 0.05); g.add(forearmR);
             const handR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), skinMat); handR.position.set(0.42, 0.95, 0.05); g.add(handR);
-
             const pack = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.5, 0.22), armorDarkMat); pack.position.set(0, 1.6, -0.3); g.add(pack);
             const packLight = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.05), visorMat); packLight.position.set(0, 1.85, -0.42); g.add(packLight);
-
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.36), skinMat); head.position.y = 2.15; g.add(head);
             const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, 0.42), helmetMat); helmet.position.y = 2.28; g.add(helmet);
             const helmetTop = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.32), accentMat); helmetTop.position.y = 2.48; g.add(helmetTop);
@@ -2213,7 +2463,6 @@
             visor.position.set(0, 2.18, 0.19); g.add(visor);
             const visorBrow = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.04, 0.05), armorDarkMat);
             visorBrow.position.set(0, 2.27, 0.19); g.add(visorBrow);
-
             const gunMat = new THREE.MeshStandardMaterial({ color: 0x0d0d12, metalness: 0.9, roughness: 0.25 });
             const gun = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.75), gunMat);
             gun.position.set(0.42, 0.95, 0.45); g.add(gun);
@@ -2226,7 +2475,6 @@
             }));
             soldierMuzzle.position.set(0.42, 0.95, 0.98); g.add(soldierMuzzle);
             g.userData.muzzle = soldierMuzzle;
-
             g.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; }});
             return g;
         }
@@ -2239,38 +2487,30 @@
             const redGlowMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 3.0, roughness: 0.2 });
             const skinMat = new THREE.MeshStandardMaterial({ color: 0x8a3828, roughness: 0.85 });
             const capeMat = new THREE.MeshStandardMaterial({ color: 0x4a0808, roughness: 0.95, side: THREE.DoubleSide });
-
             const legL = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.0, 0.6), armorMat); legL.position.set(-0.35, 0.9, 0); g.add(legL);
             const legL2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), armorDarkMat); legL2.position.set(-0.35, 0.3, 0); g.add(legL2);
             const legR = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.0, 0.6), armorMat); legR.position.set(0.35, 0.9, 0); g.add(legR);
             const legR2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), armorDarkMat); legR2.position.set(0.35, 0.3, 0); g.add(legR2);
-
             const torso = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.5, 0.9), armorMat); torso.position.y = 2.4; g.add(torso);
             const chestArmor = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.7, 1.0), goldMat); chestArmor.position.y = 2.65; g.add(chestArmor);
             const gutArmor = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.6, 0.95), armorDarkMat); gutArmor.position.y = 1.95; g.add(gutArmor);
             const chestCore = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), redGlowMat); chestCore.position.set(0, 2.7, 0.55); g.add(chestCore);
             const chestLight = new THREE.PointLight(0xff2222, 1.5, 6, 2); chestLight.position.set(0, 2.7, 0.7); g.add(chestLight);
-
             const shoulderL = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.6, 0.85), armorDarkMat); shoulderL.position.set(-0.95, 2.9, 0); g.add(shoulderL);
             const shoulderTrimL = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.9), goldMat); shoulderTrimL.position.set(-0.95, 3.15, 0); g.add(shoulderTrimL);
             const spikeL = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 6), goldMat); spikeL.position.set(-1.15, 3.4, 0); spikeL.rotation.z = 0.3; g.add(spikeL);
-
             const shoulderR = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.6, 0.85), armorDarkMat); shoulderR.position.set(0.95, 2.9, 0); g.add(shoulderR);
             const shoulderTrimR = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.9), goldMat); shoulderTrimR.position.set(0.95, 3.15, 0); g.add(shoulderTrimR);
             const spikeR = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 6), goldMat); spikeR.position.set(1.15, 3.4, 0); spikeR.rotation.z = -0.3; g.add(spikeR);
-
             const armL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.0, 0.4), armorMat); armL.position.set(-0.95, 2.35, 0); g.add(armL);
             const forearmL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.55), armorDarkMat); forearmL.position.set(-0.95, 1.5, 0); g.add(forearmL);
             const fistL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.4, 0.5), skinMat); fistL.position.set(-0.95, 1.05, 0); g.add(fistL);
-
             const armR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.0, 0.4), armorMat); armR.position.set(0.95, 2.35, 0); g.add(armR);
             const forearmR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.55), armorDarkMat); forearmR.position.set(0.95, 1.5, 0); g.add(forearmR);
             const fistR = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.4, 0.5), skinMat); fistR.position.set(0.95, 1.05, 0); g.add(fistR);
-
             const weaponMat = new THREE.MeshStandardMaterial({ color: 0x1a0a0a, metalness: 0.9, roughness: 0.2 });
             const weapon = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 1.4), weaponMat); weapon.position.set(0.95, 1.05, 0.6); g.add(weapon);
             const weaponTip = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.25), redGlowMat); weaponTip.position.set(0.95, 1.05, 1.35); g.add(weaponTip);
-
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.75, 0.75), skinMat); head.position.y = 3.6; g.add(head);
             const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.05), redGlowMat); eyeL.position.set(-0.2, 3.7, 0.4); g.add(eyeL);
             const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.05), redGlowMat); eyeR.position.set(0.2, 3.7, 0.4); g.add(eyeR);
@@ -2284,7 +2524,6 @@
             }
             const horn = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.7, 6), goldMat);
             horn.position.set(0, 4.5, 0); g.add(horn);
-
             const capeSegs = [];
             for (let i = 0; i < 4; i++) {
                 const w = 1.7 - i * 0.15;
@@ -2295,12 +2534,10 @@
                 capeSegs.push(seg);
             }
             g.userData.capeSegs = capeSegs;
-
             g.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; }});
             return g;
         }
 
-        // ---- Nametag helper ----
         function makeSoldierNametag() {
             const canvas = document.createElement('canvas');
             canvas.width = 160; canvas.height = 80;
@@ -2381,7 +2618,6 @@
             color: 0x00ff66, emissive: 0x00ff66, emissiveIntensity: 2.2, metalness: 0.7, roughness: 0.15
         });
         const gunGlowMat = new THREE.MeshBasicMaterial({ color: 0x88ffbb, transparent: true, opacity: 0.6, depthWrite: false });
-
         const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.55), gunBodyMat);
         gunBody.position.set(0.32, -0.34, -0.95); energyGun.add(gunBody);
         const gunBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.4), gunBodyMat);
@@ -2409,7 +2645,6 @@
         energyGun.userData.muzzleFlash = muzzleFlash;
         energyGun.userData.muzzleLight = muzzleLight;
         energyGun.userData.core = gunCore;
-
         energyGun.visible = false;
         camera.add(energyGun);
 
@@ -2463,16 +2698,16 @@
                 btn.addEventListener('click', () => {
                     const allBtns = quizAnswersEl.querySelectorAll('.quiz-answer');
                     allBtns.forEach(b => { b.disabled = true; if (b.dataset.correct === 'true') b.classList.add('correct'); });
-                    if (!a.correct) { btn.classList.add('wrong'); if (typeof SFX !== 'undefined') SFX.wrong(); }
+                    if (!a.correct) { btn.classList.add('wrong'); SFX.wrong(); }
                     setTimeout(() => {
                         if (a.correct) {
-                            if (typeof SFX !== 'undefined') SFX.correct();
+                            SFX.correct();
                             criminalCorrectAnswers++;
                             if (criminalCorrectAnswers >= CRIMINAL_ANSWERS_NEEDED && !gunCharged) {
                                 gunCharged = true;
                                 energyGun.visible = true;
                                 handGroup.visible = false;
-                                if (typeof SFX !== 'undefined') SFX.gunCharged();
+                                SFX.gunCharged();
                                 toastIcon.textContent = '🔫'; toastTitle.textContent = 'GUN CHARGED!';
                                 toastSub.textContent = 'Shoot the soldiers 3x each to convert them.';
                                 rewardToast.classList.add('visible');
@@ -2490,7 +2725,7 @@
 
         function convertSoldier(soldier) {
             soldier.converted = true;
-            if (typeof SFX !== 'undefined') SFX.soldierConverted();
+            SFX.soldierConverted();
             soldier.group.traverse(c => {
                 if (c.isMesh && c.material && c.material.color) {
                     if (c.material.color.getHex() === 0x1f1f2e || c.material.color.getHex() === 0x12121a) {
@@ -2512,7 +2747,6 @@
             return true;
         }
 
-        // ---- Bullet system ----
         const bullets = [];
         function spawnBullet(from, to, color) {
             const dir = new THREE.Vector3().subVectors(to, from).normalize();
@@ -2591,10 +2825,10 @@
                 if (hits.length > 0 && hits[0].distance < 80) {
                     spawnBullet(muzzleWorld, hits[0].point, 0x88ffbb);
                     boss.hits++;
-                    if (typeof SFX !== 'undefined') SFX.bossHit();
+                    SFX.bossHit();
                     if (boss.hits >= 5) {
                         boss.defeated = true;
-                        if (typeof SFX !== 'undefined') SFX.bossDefeated();
+                        SFX.bossDefeated();
                         setTimeout(() => startCinematic(), 800);
                     } else {
                         toastIcon.textContent = '⚡'; toastTitle.textContent = `BOSS HIT! (${boss.hits}/5)`;
@@ -2616,9 +2850,6 @@
             }
         }
 
-        // ============================================================
-        //  CINEMATIC + ENDING
-        // ============================================================
         const cinematicOverlay = document.getElementById('cinematic-overlay');
         const cinematicLineEl = document.getElementById('cinematic-line');
         const endingOverlay = document.getElementById('ending-overlay');
@@ -2713,14 +2944,15 @@
         let isJumping = false, canJump = true;
         let lookDeltaX = 0, lookDeltaY = 0;
         let gameActive = false, controlMode = null, pointerLocked = false, quizActive = false;
-        let nearestAnimal = null, nearestTrash = null, nearestCoral = null, nearestBird = null, nearestVine = null, nearestKey = null;
+        let nearestAnimal = null, nearestTrash = null, nearestCoral = null, nearestBird = null, nearestVine = null, nearestKey = null, nearestEco = null;
+        let nearHouseDoor = false, nearExitDoor = false;
         let isClimbing = false;
         let mapVisible = true;
         let yaw = 0, pitch = 0;
         const raycaster = new THREE.Raycaster();
 
         // ============================================================
-        //  SOUND SYSTEM (procedural Web Audio)
+        //  SOUND SYSTEM
         // ============================================================
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let audioMasterGain = null;
@@ -2782,34 +3014,55 @@
         window.addEventListener('keydown', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); }, { once: true });
 
         // ============================================================
-        //  AMBIENCE SYSTEM — real Pixabay tracks
+        //  AMBIENCE SYSTEM (procedural music)
         // ============================================================
-        const bgmFiles = {
-            city: 'sounds/city.mp3',
-            beach: 'sounds/beach.mp3',
-            reef: 'sounds/reef.mp3',
-            jungle: 'sounds/jungle.mp3',
-            criminal: 'sounds/criminal.mp3',
-            // ending reuses the beach track
-        };
-        const bgmPlayers = {};
-        let currentBgm = null;
-
+        let ambienceTimer = null;
+        let ambienceLevel = null;
         function setAmbience(level) {
-            const trackKey = level === 'ending' ? 'beach' : level;
-            if (currentBgm) {
-                currentBgm.pause();
-                currentBgm.currentTime = 0;
-                currentBgm = null;
+            if (ambienceLevel === level) return;
+            ambienceLevel = level;
+            if (ambienceTimer) { clearInterval(ambienceTimer); ambienceTimer = null; }
+            if (level === 'beach' || level === 'ending') {
+                ambienceTimer = setInterval(() => {
+                    if (currentLevel !== level) return;
+                    const bufSize = Math.floor(audioCtx.sampleRate * 1.8);
+                    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+                    const data = buf.getChannelData(0);
+                    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 0.5);
+                    const src = audioCtx.createBufferSource(); src.buffer = buf;
+                    const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 900;
+                    const gain = audioCtx.createGain();
+                    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.14, audioCtx.currentTime + 0.6);
+                    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.8);
+                    src.connect(filter); filter.connect(gain); gain.connect(audioMasterGain);
+                    src.start(); src.stop(audioCtx.currentTime + 1.8);
+                }, 2400);
+            } else if (level === 'jungle') {
+                ambienceTimer = setInterval(() => {
+                    if (currentLevel !== 'jungle') return;
+                    const base = 1500 + Math.random() * 1500;
+                    playTone(base, 0.08, 'sine', 0.05);
+                    setTimeout(() => playTone(base * 1.2, 0.06, 'sine', 0.05), 100);
+                    if (Math.random() > 0.5) setTimeout(() => playTone(base * 0.9, 0.1, 'sine', 0.05), 250);
+                }, 900);
+            } else if (level === 'city') {
+                ambienceTimer = setInterval(() => {
+                    if (currentLevel !== 'city') return;
+                    playTone(60 + Math.random() * 40, 1.5, 'sawtooth', 0.02);
+                    if (Math.random() > 0.65) playTone(300 + Math.random() * 200, 0.35, 'square', 0.03);
+                }, 2600);
+            } else if (level === 'reef') {
+                ambienceTimer = setInterval(() => {
+                    if (currentLevel !== 'reef') return;
+                    playTone(400 + Math.random() * 400, 0.15, 'sine', 0.05, 900 + Math.random() * 400);
+                }, 1300);
+            } else if (level === 'criminal') {
+                ambienceTimer = setInterval(() => {
+                    if (currentLevel !== 'criminal') return;
+                    playTone(55 + Math.random() * 25, 1.2, 'sawtooth', 0.025);
+                }, 2000);
             }
-            if (!bgmFiles[trackKey]) return;
-            if (!bgmPlayers[trackKey]) {
-                bgmPlayers[trackKey] = new Audio(bgmFiles[trackKey]);
-                bgmPlayers[trackKey].loop = true;
-                bgmPlayers[trackKey].volume = 0.35;
-            }
-            currentBgm = bgmPlayers[trackKey];
-            currentBgm.play().catch(() => {});
         }
 
         const keyState = { w: false, a: false, s: false, d: false };
@@ -2827,7 +3080,9 @@
                     case 'Space': if (canJump || isClimbing) { isJumping = true; canJump = false; SFX.jump(); } e.preventDefault(); break;
                     case 'KeyE':
                         if (currentLevel === 'city') {
-                            if (nearestKey && !nearestKey.collected) {
+                            if (nearHouseDoor) {
+                                enterHouse();
+                            } else if (nearestKey && !nearestKey.collected) {
                                 collectKey(nearestKey);
                             } else if (nearestAnimal && !nearestAnimal.rescued) {
                                 if (nearestAnimal.locked && !nearestAnimal.hasKey) {
@@ -2851,6 +3106,10 @@
                                 openCriminalQuiz();
                             }
                         }
+                        else if (currentLevel === 'interior') {
+                            if (nearExitDoor) exitHouse();
+                            else if (nearestEco && !nearestEco.done) completeEco(nearestEco);
+                        }
                     break;
                     case 'KeyF':
                         if (currentLevel === 'jungle' && nearestBird && !nearestBird.rescued) {
@@ -2862,7 +3121,7 @@
                         document.getElementById('treasure-map').classList.toggle('visible', mapVisible);
                         document.getElementById('map-hint').classList.toggle('visible', !mapVisible);
                         break;
-            }
+                }
             });
             window.addEventListener('keyup', (e) => {
                 switch (e.code) {
@@ -3253,6 +3512,7 @@
             setTimeout(() => {
                 if (level === 'beach') {
                     cityGroup.visible = false; beachGroup.visible = true; reefGroup.visible = false; jungleGroup.visible = false; criminalGroup.visible = false;
+                    interiorGroup.visible = false;
                     currentLevel = 'beach';
                     camera.position.set(0, PLAYER_HEIGHT, 10);
                     yaw = 0; pitch = 0;
@@ -3260,6 +3520,7 @@
                     trashCounterEl.classList.add('visible');
                     coralCounterEl.classList.remove('visible');
                     birdCounterEl.classList.remove('visible');
+                    document.getElementById('bonus-counter').classList.remove('visible');
                     document.getElementById('criminal-hud').classList.remove('visible');
                     document.getElementById('treasure-map').classList.remove('visible');
                     document.getElementById('map-hint').classList.remove('visible');
@@ -3269,6 +3530,7 @@
                     setAmbience('beach');
                 } else if (level === 'reef') {
                     cityGroup.visible = false; beachGroup.visible = false; reefGroup.visible = true; jungleGroup.visible = false; criminalGroup.visible = false;
+                    interiorGroup.visible = false;
                     currentLevel = 'reef';
                     camera.position.set(0, 2, 25);
                     yaw = 0; pitch = 0;
@@ -3276,6 +3538,7 @@
                     trashCounterEl.classList.remove('visible');
                     coralCounterEl.classList.add('visible');
                     birdCounterEl.classList.remove('visible');
+                    document.getElementById('bonus-counter').classList.remove('visible');
                     document.getElementById('criminal-hud').classList.remove('visible');
                     coralNumEl.textContent = `0 / ${totalCorals}`;
                     infoEl.textContent = '🪸 CORAL REEF RESCUE';
@@ -3284,6 +3547,7 @@
                     updateTimeOfDay(0);
                 } else if (level === 'jungle') {
                     cityGroup.visible = false; beachGroup.visible = false; reefGroup.visible = false; jungleGroup.visible = true; criminalGroup.visible = false;
+                    interiorGroup.visible = false;
                     currentLevel = 'jungle';
                     camera.position.set(0, PLAYER_HEIGHT, 30);
                     yaw = 0; pitch = 0;
@@ -3291,6 +3555,7 @@
                     trashCounterEl.classList.remove('visible');
                     coralCounterEl.classList.remove('visible');
                     birdCounterEl.classList.add('visible');
+                    document.getElementById('bonus-counter').classList.remove('visible');
                     document.getElementById('criminal-hud').classList.remove('visible');
                     birdNumEl.textContent = `0 / ${totalBirds}`;
                     document.getElementById('treasure-map').classList.add('visible');
@@ -3301,6 +3566,7 @@
                     updateTimeOfDay(0);
                 } else if (level === 'criminal') {
                     cityGroup.visible = false; beachGroup.visible = false; reefGroup.visible = false; jungleGroup.visible = false; criminalGroup.visible = true;
+                    interiorGroup.visible = false;
                     currentLevel = 'criminal';
                     camera.position.set(0, PLAYER_HEIGHT, 15);
                     yaw = 0; pitch = 0;
@@ -3308,6 +3574,7 @@
                     trashCounterEl.classList.remove('visible');
                     coralCounterEl.classList.remove('visible');
                     birdCounterEl.classList.remove('visible');
+                    document.getElementById('bonus-counter').classList.remove('visible');
                     document.getElementById('criminal-hud').classList.add('visible');
                     document.getElementById('treasure-map').classList.remove('visible');
                     document.getElementById('map-hint').classList.remove('visible');
@@ -3321,9 +3588,11 @@
                     criminalGroup.visible = false;
                     beachGroup.visible = true;
                     cityGroup.visible = false; reefGroup.visible = false; jungleGroup.visible = false;
+                    interiorGroup.visible = false;
                     currentLevel = 'ending';
                     camera.position.set(0, PLAYER_HEIGHT, 20);
                     yaw = 0; pitch = 0.05;
+                    document.getElementById('bonus-counter').classList.remove('visible');
                     document.getElementById('criminal-hud').classList.remove('visible');
                     document.getElementById('clock-display').classList.add('visible');
                     document.getElementById('time-controls').classList.add('visible');
@@ -3560,9 +3829,6 @@
             }
         }
 
-        // ============================================================
-        //  COLLISION
-        // ============================================================
         function collidesAt(x, y, z) {
             const pMinX = x - PLAYER_RADIUS, pMaxX = x + PLAYER_RADIUS;
             const pMinZ = z - PLAYER_RADIUS, pMaxZ = z + PLAYER_RADIUS;
@@ -3611,6 +3877,7 @@
             infoEl.classList.add('visible'); crosshairEl.classList.add('visible');
             fullscreenBtnEl.classList.add('visible'); timeControlsEl.classList.add('visible');
             clockDisplayEl.classList.add('visible'); animalCounterEl.classList.add('visible');
+            document.getElementById('bonus-counter').classList.add('visible');
             counterNumEl.textContent = `0 / ${totalAnimals}`;
             if (mode === 'mobile') {
                 joystickContainer.classList.add('visible'); jumpButtonEl.classList.add('visible'); lookAreaEl.classList.add('visible');
@@ -3681,7 +3948,6 @@
             updateClouds(delta);
             updateBullets(delta);
 
-            // Beach animations
             if (beachGroup.visible) {
                 const wArr = waterGeo.attributes.position.array;
                 for (let i = 0; i < wArr.length; i += 3) {
@@ -3750,7 +4016,6 @@
                 }
             }
 
-            // Reef animations
             if (reefGroup.visible) {
                 for (let i = 0; i < fishes.length; i++) {
                     const f = fishes[i];
@@ -3769,7 +4034,6 @@
                 }
             }
 
-            // Jungle animations
             if (jungleGroup.visible) {
                 for (let i = 0; i < fireflies.length; i++) {
                     const ff = fireflies[i];
@@ -3784,7 +4048,6 @@
                 }
             }
 
-            // Criminal level animations
             if (criminalGroup.visible) {
                 const tC = tSec;
                 for (let i = 0; i < soldiers.length; i++) {
@@ -3851,8 +4114,6 @@
                     const gd = glowDots[i];
                     gd.material.opacity = 0.5 + Math.sin(tC * 2 + gd.userData.phase) * 0.4;
                 }
-
-                // Converted soldiers fire at the boss
                 if (boss && !boss.defeated) {
                     for (let i = 0; i < soldiers.length; i++) {
                         const s = soldiers[i];
@@ -3886,7 +4147,6 @@
                 }
             }
 
-            // Ending meteor shower
             if (currentLevel === 'ending') {
                 meteorTimer += delta;
                 if (meteorTimer > 0.35 && meteors.length < 30) {
@@ -3910,7 +4170,14 @@
                 }
             }
 
-            // Animate keys
+            if (houseDoor.ring) houseDoor.ring.material.opacity = 0.5 + Math.sin(tSec * 3) * 0.3;
+            if (exitDoor.ring) exitDoor.ring.material.opacity = 0.5 + Math.sin(tSec * 3) * 0.3;
+
+            for (let i = 0; i < ecoObjectives.length; i++) {
+                const e = ecoObjectives[i];
+                if (e.indicator && e.indicator.visible) e.indicator.rotation.z += delta * 1.5;
+            }
+
             for (let i = 0; i < keys.length; i++) {
                 const k = keys[i];
                 if (k.collected) continue;
@@ -4042,6 +4309,10 @@
                     const xLim = 90;
                     camera.position.x = Math.max(-xLim, Math.min(xLim, camera.position.x));
                     camera.position.z = Math.max(-30, Math.min(50, camera.position.z));
+                } else if (currentLevel === 'interior') {
+                    const lim = interiorSize / 2 - 0.8;
+                    camera.position.x = Math.max(-lim, Math.min(lim, camera.position.x));
+                    camera.position.z = Math.max(-lim, Math.min(lim, camera.position.z));
                 }
                 const onGround = canJump;
                 if (isMoving && onGround) {
@@ -4076,8 +4347,8 @@
             handGroup.rotation.z = handBaseRot.z + handSwayX * 0.6;
             handGroup.rotation.y = handBaseRot.y + handSwayX * 0.2;
 
-            // Proximity detection
-            nearestAnimal = null; nearestTrash = null; nearestCoral = null; nearestBird = null; nearestVine = null; nearestKey = null;
+            nearestAnimal = null; nearestTrash = null; nearestCoral = null; nearestBird = null; nearestVine = null; nearestKey = null; nearestEco = null;
+            nearHouseDoor = false; nearExitDoor = false;
             if (currentLevel === 'city') {
                 let closestKeyDist = INTERACT_RANGE;
                 for (let i = 0; i < keys.length; i++) {
@@ -4089,6 +4360,9 @@
             }
             if (!isClimbing) {
                 if (currentLevel === 'city') {
+                    const dd = Math.hypot(houseDoor.x - camera.position.x, houseDoor.z - camera.position.z);
+                    if (dd < 3.0) nearHouseDoor = true;
+
                     let cd = INTERACT_RANGE;
                     for (let i = 0; i < animals.length; i++) {
                         const a = animals[i];
@@ -4111,6 +4385,16 @@
                         if (c.healed) continue;
                         const dist = Math.hypot(c.x - camera.position.x, c.z - camera.position.z);
                         if (dist < cd) { cd = dist; nearestCoral = c; }
+                    }
+                } else if (currentLevel === 'interior') {
+                    const ed = Math.hypot(exitDoor.x - camera.position.x, exitDoor.z - camera.position.z);
+                    if (ed < 2.5) nearExitDoor = true;
+                    let closestEcoDist = 3.0;
+                    for (let i = 0; i < ecoObjectives.length; i++) {
+                        const e = ecoObjectives[i];
+                        if (e.done) continue;
+                        const dist = Math.hypot(e.x - camera.position.x, e.z - camera.position.z);
+                        if (dist < closestEcoDist) { closestEcoDist = dist; nearestEco = e; }
                     }
                 } else if (currentLevel === 'jungle') {
                     let closestBirdDist = 6.0;
@@ -4138,7 +4422,12 @@
             coralPromptEl.classList.remove('visible');
             climbPromptEl.classList.remove('visible');
             if (!quizActive) {
-                if (currentLevel === 'city' && nearestKey) {
+                if (currentLevel === 'city' && nearHouseDoor) {
+                    promptAnimalEl.textContent = '🏠';
+                    promptTextEl.textContent = 'Enter the household';
+                    promptKeyEl.textContent = 'E';
+                    rescuePromptEl.classList.add('visible');
+                } else if (currentLevel === 'city' && nearestKey) {
                     promptAnimalEl.textContent = '🔑';
                     promptTextEl.textContent = 'A golden key!';
                     promptKeyEl.textContent = 'E';
@@ -4156,6 +4445,27 @@
                     trashPromptEl.classList.add('visible');
                 } else if (currentLevel === 'reef' && nearestCoral) {
                     coralPromptEl.classList.add('visible');
+                } else if (currentLevel === 'interior') {
+                    if (nearExitDoor) {
+                        promptAnimalEl.textContent = '🚪';
+                        promptTextEl.textContent = 'Exit to street';
+                        promptKeyEl.textContent = 'E';
+                        rescuePromptEl.classList.add('visible');
+                    } else if (nearestEco) {
+                        const promptIcons = {
+                            light: '💡', ac: '❄️', tap: '💧',
+                            bin: '♻️', socket: '🔌', radiator: '🔥'
+                        };
+                        const promptTexts = {
+                            light: 'Turn off the lights?', ac: 'Turn up the AC?',
+                            tap: 'Close the tap?', bin: 'Recycle this?',
+                            socket: 'Unplug the device?', radiator: 'Lower the heat?'
+                        };
+                        promptAnimalEl.textContent = promptIcons[nearestEco.type] || '✨';
+                        promptTextEl.textContent = promptTexts[nearestEco.type] || 'Take action?';
+                        promptKeyEl.textContent = 'E';
+                        rescuePromptEl.classList.add('visible');
+                    }
                 } else if (currentLevel === 'jungle') {
                     if (nearestBird) {
                         promptAnimalEl.textContent = nearestBird.data.icon;
